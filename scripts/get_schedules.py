@@ -1,9 +1,13 @@
 import requests, json, csv
 from bs4 import BeautifulSoup
 import time
+import os
 import datetime
 
-teams_file = open('../data/json/teams.json').read()
+START_YEAR = "2014"
+END_YEAR = "2015"
+
+teams_file = open('../data/teams.json').read()
 teams_json = json.loads(teams_file)
 teams = teams_json['teams']
 
@@ -33,16 +37,21 @@ est = EST()
 if __name__ == '__main__':
     for team in teams:
         team_url = 'http://espn.go.com/nba/team/schedule/_/name/{0}/{1}'.format(team['abbr'], team['full_name'])
-
+        print team_url
         final_schedule = []
 
         r = requests.get(team_url)
 
         if r.status_code is 200:
+            csv_file_name = '../data/'+ START_YEAR + '-' + END_YEAR + '/csv/' + team['full_name'] + '.csv'
 
-            csv_file = open('../data/csv/' + team['full_name'] + '.csv', 'w')
+            if not os.path.exists(os.path.dirname(csv_file_name)):
+                os.makedirs(os.path.dirname(csv_file_name))
+
+            csv_file = open(csv_file_name, 'w')
+
             writer = csv.writer(csv_file, delimiter=',')
-            writer.writerow(['DATE','TIME(EST)','OPPONENT','ARENA','HOME'])
+            writer.writerow(['DATE','OPPONENT','ARENA','HOME'])
 
             soup = BeautifulSoup(r.text)
             schedule = soup.find_all('table')[0]
@@ -55,9 +64,9 @@ if __name__ == '__main__':
                     month_abbr = full_date.split(',')[1].strip().split(' ')[0]
                     month = time.strptime(month_abbr, '%b').tm_mon
                     if month > 4:
-                        year = 2013
+                        year = START_YEAR
                     else:
-                        year = 2014
+                        year = END_YEAR
                     day = int(full_date.split(',')[1].strip().split(' ')[1])
                     full_date = '{0}-{1}-{2}'.format(month, day, year)
                     home_away = row.find_all('li', 'game-status')[0]
@@ -75,14 +84,7 @@ if __name__ == '__main__':
                             opponent_nickname = 'Clippers'
                     if opponent_location == 'NY Knicks':
                         opponent_location = 'New York'
-                    gametime = elements[2].contents[0]
-                    hour = int(gametime.split(':')[0])
-                    if hour is 12:
-                        hour = hour
-                    else:
-                        hour = hour + 12
-                    minute = int(gametime.split(':')[1].split(' ')[0])
-                    full_datetime = datetime.datetime(year, month, day, hour, minute, 0, 0, tzinfo=est)
+
                     tv = elements[3].contents[0]
 
                     tv_chan = tv.find('a')
@@ -128,11 +130,7 @@ if __name__ == '__main__':
                             'monthAbbr': month_abbr,
                             'month': month,
                             'dayOfWeek': day_of_week,
-                            'day': day,
-                            'time': gametime,
-                            'hour': hour,
-                            'minute': minute,
-                            'fullDateTime': full_datetime
+                            'day': day
                         },
                         'isHomeGame': isHome,
                         'where': where,
@@ -141,12 +139,15 @@ if __name__ == '__main__':
                     }
                     final_schedule.append(game)
                     writer.writerow([full_date,
-                                     gametime, 
                                      game['opponent']['location'] + ' ' + game['opponent']['nickname'],
                                      place['arena'],
                                      isHome])
+            json_file_name = '../data/' + START_YEAR + '-' + END_YEAR + '/json/' + team['full_name'] + '.json'
 
-            json_file = open('../data/json/' + team['full_name'] + '.json', 'w')
+            if not os.path.exists(os.path.dirname(json_file_name)):
+                os.makedirs(os.path.dirname(json_file_name))
+
+            json_file = open(json_file_name, 'w')
 
             team_data = { 'team' : find_team(team['location']),
                           'schedule' : final_schedule }
